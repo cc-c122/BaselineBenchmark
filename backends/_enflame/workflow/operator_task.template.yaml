@@ -1,0 +1,70 @@
+schema_version: 1
+
+task:
+  operator_name: "<operator_name>"
+  objective: "<例如：在严格保持数学语义下最小化 BF16 forward latency>"
+  final_delivery_file: "/workspace/FlagGems-vllm/src/flaggems_vllm/runtime/backend/_enflame/ops/<operator>.py"
+  current_entrypoint: "<python.module:function>"
+  baseline_entrypoint: "<由工作流确定>"
+  forward_only: true
+  gradients_required: false
+
+environment:
+  ssh_target: "yzchen#root#<credential>@bastion.aiops.baai.ac.cn"
+  ssh_port: 2224
+  docker_container: "czy-enflame3"
+  workspace: "/workspace/FlagGems-vllm"
+  device: "gcu"
+  vendor: "enflame"
+  allowed_write_scope: "docker_container_only"
+  forbidden:
+    - "修改 Docker 外文件"
+    - "并发运行多个 GCU benchmark/autotune"
+    - "覆盖或删除用户无关改动"
+
+semantics:
+  definition: "<公式、论文章节、现有代码或独立说明>"
+  input_contract:
+    - {name: "<input>", shape: "<shape>", dtype: "<dtype>", layout: "<layout>"}
+  output_contract:
+    - {name: "<output>", shape: "<shape>", dtype: "<dtype>", layout: "<layout>"}
+  optional_modes:
+    initial_state: "<required/optional/not_applicable>"
+    final_state: "<required/optional/not_applicable>"
+    varlen: "<required/optional/not_applicable>"
+    backward: "<required/optional/not_applicable>"
+  numerical_domain:
+    constraints: ["<例如 log forget gate <= 0>"]
+    adversarial_cases: ["tail", "extreme_value", "non_power_of_two"]
+
+workload:
+  dtype: ["torch.bfloat16"]
+  shapes:
+    - {B: 1, T: 1024, H: 8, K: 64, V: 64, priority: primary}
+  layouts: ["default"]
+  modes: ["dense"]
+  warmup: 5
+  iterations: 30
+  independent_runs: 3
+  seed: 42
+
+metrics:
+  primary: "median_latency_ms"
+  secondary:
+    - "min_latency_ms"
+    - "max_latency_ms"
+    - "peak_memory_bytes"
+    - "first_compile_seconds"
+  speedup_definition: "baseline_ms / current_ms"
+  higher_speedup_is_better: true
+
+acceptance:
+  oracle_dtype: "torch.float64_on_cpu_when_feasible"
+  output_rtol: "<按 dtype 预注册，不可在看到失败后随意放宽>"
+  output_atol: "<按 dtype 预注册，不可在看到失败后随意放宽>"
+  state_rtol: "<optional>"
+  state_atol: "<optional>"
+  require_finite: true
+  require_all_modes: true
+  performance_noise_floor: "由修改前重复实验估计"
+  minimum_stable_improvement: "必须超过噪声区间；默认至少 1%，建议 3%"

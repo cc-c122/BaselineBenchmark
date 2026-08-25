@@ -411,3 +411,45 @@ pytest -q tests/test_FLA/test_chunk_gla.py -k "B1-T256-H4-D32" -s
 
 这些方向需要新 kernel、完整多 shape 调优和长时间编译验证，已不再是可安全接受的局部
 优化。继续在现有 Python 调度层叠加分支，实验已证明会抵消收益。
+
+
+## 14. 可复用 AI 算子优化工作流
+
+本次过程已经抽象为可复用工作流：
+
+```text
+/workspace/FlagGems-vllm/BaselineBenchmark/backends/_enflame/workflow/
+```
+
+入口说明：
+
+```text
+workflow/README.md
+```
+
+机器可读主流程：
+
+```text
+workflow/operator_optimization_workflow.yaml
+```
+
+新算子任务输入模板、实验模板和验收清单：
+
+```text
+workflow/operator_task.template.yaml
+workflow/experiment_record.template.yaml
+workflow/final_report.template.md
+workflow/ACCEPTANCE_CHECKLIST.md
+```
+
+本次 chunk GLA 的机器可读示例：
+
+```text
+workflow/runs/chunk_gla/operator_task.yaml
+workflow/runs/chunk_gla/experiment_record.yaml
+workflow/runs/chunk_gla/final_report.md
+```
+
+后续选择新算子时，先复制 task 模板填写目标、交付文件、数学语义、shape、dtype 和必需模式，
+再要求 AI 严格执行主流程 YAML。AI 必须自主调查 baseline、建立独立 oracle、优化正确
+baseline、优化 current、逐项回滚失败实验，并按验收清单输出最终结果。

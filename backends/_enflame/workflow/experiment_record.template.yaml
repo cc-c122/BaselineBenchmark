@@ -1,0 +1,66 @@
+schema_version: 1
+
+experiment:
+  id: "EXP-000"
+  operator: "<operator_name>"
+  date: "<YYYY-MM-DD>"
+  status: "planned"  # planned | running | accepted | rejected | blocked
+  owner: "AI"
+  hypothesis: "<单一、可证伪的性能假设>"
+  target: "baseline"  # baseline | current
+  risk:
+    correctness: "low"
+    performance_regression: "medium"
+    compile_time: "low"
+
+change:
+  files: []
+  before_summary: "<修改前行为>"
+  patch_summary: "<准确描述改动，不使用模糊的‘优化’>"
+  expected_effect: "<减少哪些 bytes/launch/sync/计算>"
+  rollback: "<备份文件或反向 patch>"
+
+environment:
+  container: "czy-enflame3"
+  device: "gcu"
+  dtype: "torch.bfloat16"
+  relevant_env: {}
+  concurrent_gcu_processes: 0
+  first_compile_seconds: null
+
+correctness:
+  oracle: "<CPU FP64/官方实现/独立分解>"
+  pre_registered_tolerance:
+    rtol: null
+    atol: null
+  commands: []
+  cases: []
+  result: "not_run"
+  known_xfail: []
+  max_abs_error: null
+  relative_error: null
+  finite: null
+
+performance:
+  metric: "median_latency_ms"
+  ratio: "baseline/current"
+  command: ""
+  warmup: 5
+  iterations: 30
+  independent_runs: 3
+  shapes:
+    - shape: {}
+      before_ms: []
+      after_ms: []
+      baseline_ms: []
+      noise_floor_percent: null
+      improvement_percent: null
+      baseline_over_current: null
+
+decision:
+  outcome: "pending"
+  evidence: []
+  rejection_reason: ""
+  retained_files: []
+  reverted_files: []
+  follow_up: []
