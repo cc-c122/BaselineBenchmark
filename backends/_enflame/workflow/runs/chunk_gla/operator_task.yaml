@@ -1,0 +1,34 @@
+schema_version: 1
+task:
+  operator_name: "chunk_gla"
+  objective: "严格保持 GLA 数学逻辑，选择最快正确 baseline，并优化 Enflame current Triton 实现"
+  final_delivery_file: "/workspace/FlagGems-vllm/src/flaggems_vllm/runtime/backend/_enflame/ops/chunk_gla.py"
+  current_entrypoint: "flaggems_vllm.runtime.backend._enflame.ops.chunk_gla:chunk_gla"
+  baseline_entrypoint: "BaselineBenchmark.backends._enflame.ops.chunk_gla.chunk_gla_tops:chunk_gla_tops"
+  forward_only_baseline: true
+  gradients_required_for_current: true
+
+environment:
+  docker_container: "czy-enflame3"
+  workspace: "/workspace/FlagGems-vllm"
+  device: "gcu"
+  vendor: "enflame"
+  allowed_write_scope: "docker_container_only"
+
+semantics:
+  state_equation: "h_t = diag(exp(g_t)) h_(t-1) + k_t outer v_t"
+  output_equation: "o_t = scale * q_t^T h_t"
+  state_layouts: ["K-first [B,H,K,V]", "V-first [B,H,V,K]"]
+  modes: ["dense", "varlen", "initial_state", "final_state", "backward_current"]
+  gate_contract: "log forget gate，正常模型路径为非正值"
+
+workload:
+  dtype: ["torch.bfloat16"]
+  representative_shapes:
+    - [8, 1024, 8, 64]
+    - [4, 2048, 16, 128]
+    - [4, 1024, 8, 512]
+  warmup: 5
+  iterations: 30
+  independent_runs: 3
+  ratio: "baseline/current"

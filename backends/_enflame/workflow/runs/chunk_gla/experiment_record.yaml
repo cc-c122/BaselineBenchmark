@@ -1,0 +1,94 @@
+schema_version: 1
+operator: "chunk_gla"
+date: "2026-08-25"
+
+baseline_selection:
+  candidates:
+    - id: "BASE-TORCH"
+      implementation: "Torch eager/vectorized"
+      correctness: "passed during development"
+      decision: "rejected"
+      reason: "不是最终正确候选中的最快实现"
+    - id: "BASE-TOPS"
+      implementation: "Python wrapper + Tops C++ extension + TopsAten kernels"
+      correctness: "8 passed"
+      decision: "accepted"
+      note: "不是自定义 __global__ 设备 kernel"
+  retained: "BASE-TOPS"
+
+experiments:
+  - id: "CUR-EMPTY-DENSE"
+    hypothesis: "dense output kernel 完整覆盖写，取消预清零可减少显存写和 allocator 工作"
+    change: "dense 使用 torch.empty_like；varlen 继续 torch.zeros_like"
+    correctness: "passed"
+    before_ms: [2.785, 2.782, 2.779]
+    after_ms: [2.534, 2.302, 2.299]
+    final_ms: 2.301
+    decision: "accepted"
+
+  - id: "CUR-CHUNK-32-128"
+    hypothesis: "改变 chunk 数量可能减少 launch 或提高并行度"
+    result: "BT 非 64 会退出并行 state specialization；关闭并行 state 约 189.09 ms"
+    decision: "rejected_and_reverted"
+
+  - id: "CUR-A-BF16"
+    hypothesis: "A 使用 BF16 可减少一半中间显存流量"
+    result_ms: [2.672, 2.675]
+    additional_risk: "backward dv 依赖 FP32 A 精度"
+    decision: "rejected_and_reverted"
+
+  - id: "CUR-BC16"
+    hypothesis: "缩小对角块可避免极端 gate 的中点指数溢出"
+    correctness: "continuous g=-4 passed"
+    result_ms: [7.252, 7.289, 7.298]
+    decision: "rejected_and_reverted"
+
+  - id: "CUR-BC32"
+    hypothesis: "BC32 在数值安全和性能间折中"
+    correctness: "continuous g=-4 passed"
+    result_ms: [3.586]
+    decision: "rejected_and_reverted"
+
+  - id: "CUR-HOST-GATE-SPAN"
+    hypothesis: "按 gate span 动态选择 BC"
+    result: "每次 .item() 引入 CPU/GCU 同步，无法接受"
+    decision: "rejected_and_reverted"
+
+  - id: "CUR-DEVICE-SAFE-FALLBACK"
+    hypothesis: "设备端标记危险 chunk，仅对危险 chunk 用稳定公式覆盖"
+    correctness: "continuous g=-4 passed"
+    result_ms: [8.843]
+    result_detail: "额外 kernel 和大量早退 program 调度成本过高，首次编译成本大"
+    decision: "rejected_and_reverted"
+
+  - id: "CUR-TLE-OFF"
+    hypothesis: "普通 Triton load 路径可能优于 TLE"
+    result: "进入另一套大规模 autotune/编译，短时无法得到可信稳态数据"
+    decision: "rejected_no_retained_change"
+
+correctness_results:
+  baseline_independent_fp64: "8 passed"
+  current_independent_fp64: "5 passed, 1 strict xfailed"
+  current_forward_backward_crosscheck: "1 passed, 13 deselected"
+  known_xfail: "连续 g=-4 时 BC64 中点指数分解可能形成 inf*0"
+
+final_performance:
+  metric: "median latency ms"
+  ratio: "baseline/current"
+  rows:
+    - shape: [8, 1024, 8, 64]
+      current_ms: 2.301
+      baseline_ms: 4.687
+      baseline_over_current: 2.04
+    - shape: [4, 2048, 16, 128]
+      current_ms: 6.090
+      baseline_ms: 15.823
+      baseline_over_current: 2.60
+    - shape: [4, 1024, 8, 512]
+      current_ms: 8.184
+      baseline_ms: 18.520
+      baseline_over_current: 2.26
+
+final_retained_changes:
+  - file: "/workspace/FlagGems-vllm/src/flaggems_vllm/runtime/backend/_enflame/ops/chunk_gla.py"
+    change: "dense output allocation uses empty_like; varlen remains zeros_like"

@@ -1,0 +1,210 @@
+schema_version: 1
+workflow_name: "enflame_operator_baseline_and_current_optimization"
+purpose: "AI 自主寻找/实现最快正确 baseline，并优化最终 current operator"
+
+hard_rules:
+  - id: correctness_first
+    rule: "任何性能改动必须先保持数学语义；NaN、模式缺失或仅与自身互证均不算正确。"
+  - id: docker_only
+    rule: "所有写操作、编译和测试只发生在任务指定 Docker 容器内。"
+  - id: preserve_user_work
+    rule: "先检查 git status；不得撤销、覆盖、移动与任务无关的用户改动。"
+  - id: independent_oracle
+    rule: "正确性 oracle 不得调用 baseline/current 的核心实现。"
+  - id: fair_measurement
+    rule: "baseline/current 使用同一输入和同步边界；首次编译与稳态分开。"
+  - id: no_false_win
+    rule: "失败、超时、降级语义、不同 dtype/shape 或未同步数据不得记为性能胜利。"
+  - id: revert_rejected
+    rule: "拒绝实验必须撤销；最终源码只保留已验收改动。"
+
+directory_contract:
+  baseline_source: "ops/<operator_name>/"
+  benchmark: "benchmarks/bench_<operator_name>.py"
+  baseline_test: "test/test_<operator_name>_reference.py"
+  current_test: "test/test_<operator_name>_current_reference.py"
+  optimization_log: "doc/<operator_name>_optimization_notes.md"
+  task_input: "workflow/operator_task.yaml"
+  experiment_log: "workflow/runs/<operator_name>/experiment_record.yaml"
+  final_report: "workflow/runs/<operator_name>/final_report.md"
+
+ratio_contract:
+  displayed_metric: "baseline/current"
+  formula: "baseline_median_ms / current_median_ms"
+  interpretation:
+    greater_than_1: "current 更快"
+    equal_to_1: "性能相当"
+    less_than_1: "baseline 更快"
+
+phases:
+  - id: 0_intake_and_scope
+    objective: "冻结目标、权限、交付文件和测试矩阵。"
+    actions:
+      - "读取 operator_task.yaml、当前实现、调用方、现有测试和 benchmark。"
+      - "记录 container、设备、软件版本、环境变量和 git status。"
+      - "识别 forward/backward、dense/varlen、state/layout 等必需模式。"
+    gate:
+      - "交付文件和入口明确。"
+      - "正确性与性能 shape 矩阵明确。"
+      - "没有越权写入需求。"
+
+  - id: 1_semantics_and_oracle
+    objective: "从数学定义建立独立正确性标准。"
+    actions:
+      - "写出逐元素、逐 token 或高精度定义式。"
+      - "优先 CPU FP64；不可行时使用可信框架实现和小规模分解。"
+      - "预先定义 dtype 容差，不得为通过某次失败事后无依据放宽。"
+      - "覆盖 tail、非二次幂、极端值、初始/最终 state、布局、varlen 和 backward。"
+    gate:
+      - "oracle 不依赖被测实现。"
+      - "修改前 current 的已知通过项和已知失败项均记录。"
+
+  - id: 2_baseline_discovery
+    objective: "找到独立且有竞争力的 baseline 候选。"
+    search_order:
+      - "芯片厂商官方算子或 SDK 样例"
+      - "上游项目和论文官方实现"
+      - "仓库内其他 backend"
+      - "Torch 向量化/compile"
+      - "Tops C++/TopsAten"
+      - "可用设备 DSL 或自定义设备 kernel"
+    actions:
+      - "明确每个候选最终 lower 到何种 kernel；不能只按文件语言命名。"
+      - "至少保留一个简单 oracle-friendly 候选。"
+      - "没有官方实现时，尽量实现两个不同技术路线的候选。"
+      - "每个候选先通过 oracle，再进入性能比较。"
+    selection:
+      rule: "在完整必需语义上正确的候选中，保留稳态中位数最快者。"
+      forbidden: "故意保留较慢 baseline 以放大 current 优势。"
+
+  - id: 3_benchmark_harness
+    objective: "建立可重复、公平的 baseline/current 测量。"
+    required_behavior:
+      - "固定随机种子并复用完全相同的输入 tensor。"
+      - "每次计时前后执行 torch.gcu.synchronize()。"
+      - "报告 median/min/max，不只报告单次时间。"
+      - "支持 shape-index、warmup、iter、baseline-only 和实现开关。"
+      - "输出 baseline/current，数值大于 1 表示 current 更快。"
+      - "记录 dtype、shape、layout、实际 chunk/tile 和环境变量。"
+      - "首次编译单独预热或单独报告。"
+    contamination_checks:
+      - "运行前检查 pytest、benchmark、compiler、autotune 残留进程。"
+      - "禁止两个 GCU benchmark 同时运行。"
+      - "A/B 顺序产生疑问时采用 ABBA 或随机交错测量。"
+
+  - id: 4_baseline_optimization
+    objective: "让 baseline 本身尽可能快，同时保持独立性。"
+    candidate_classes:
+      - "消除 Python token/chunk 循环"
+      - "向量化、批量矩阵乘和减少中间 tensor"
+      - "安全 mixed precision"
+      - "TopsAten 调度与 C++ 边界开销"
+      - "chunk/tile 搜索和数值安全选择"
+      - "缓存只读 mask/metadata"
+    loop: "按 phase 6 的统一实验循环执行，直到候选空间停止条件满足。"
+    gate:
+      - "最终 baseline 通过全部 baseline oracle 测试。"
+      - "最终 baseline 是已验证候选中最快者。"
+      - "报告其真实 DSL/lowering，例如 Tops C++ + TopsAten，而非笼统写 C++。"
+
+  - id: 5_current_profile_and_hypotheses
+    objective: "形成基于数据的 current 优化假设。"
+    inspect:
+      - "调用图、kernel 数量、launch、同步、分配和中间 tensor"
+      - "tile、warp、stage、grid remap、autotune 配置"
+      - "读写字节、矩阵计算量、复用和寄存器/片上存储压力"
+      - "state scan、chunk 边界和串行依赖"
+      - "dtype conversion、指数范围和 mask/padding 语义"
+    hypothesis_priority:
+      - "P0：无语义风险的分配、冗余清零、重复转换、冗余 launch"
+      - "P1：tile/config、内存布局、异步 load、局部融合"
+      - "P2：state scan、跨 kernel 融合、分块算法重写"
+    gate:
+      - "每个实验有可证伪假设、预期收益和风险。"
+
+  - id: 6_single_experiment_loop
+    objective: "科学地接受或拒绝每一个改动。"
+    steps:
+      - "在容器内保存目标文件精确修改前版本或可逆 patch。"
+      - "一次只改变一个主要变量。"
+      - "执行 py_compile/import smoke。"
+      - "先跑最小 oracle，再跑完整模式正确性。"
+      - "运行修改前/修改后的重复性能测试；记录原始样本。"
+      - "检查进程竞争、首次编译、缓存和异常值。"
+      - "收益超过噪声且所有正确性通过才接受。"
+      - "否则撤销并记录 reject 原因。"
+    record_template: "experiment_record.template.yaml"
+    decisions:
+      accept:
+        - "所有 required correctness case 通过"
+        - "无新增 NaN/Inf"
+        - "性能收益在独立运行中稳定且超过噪声"
+        - "代码复杂度和启动开销可接受"
+      reject:
+        - "任一正确性红线失败"
+        - "只在首次编译或污染测量中获益"
+        - "稳态收益小于噪声"
+        - "优化一个 shape 却导致高优先级 shape 明显回退"
+        - "增加不可接受的编译、同步、显存或维护成本"
+
+  - id: 7_numerical_and_mode_stress
+    objective: "验证优化没有缩小合法数学域。"
+    cases:
+      - "普通随机输入"
+      - "零值、极小/极大值和强负 gate"
+      - "长度小于 tile、等于 tile、tile+1 和非整除 tail"
+      - "非二次幂 K/V"
+      - "initial_state 有/无，final_state 开/关"
+      - "K-first/V-first"
+      - "dense/varlen/padding"
+      - "forward/backward（若任务要求）"
+    policy: "发现既有问题也必须记录；不得把 xfail 描述成通过。"
+
+  - id: 8_final_validation
+    objective: "从干净状态验证最终结果。"
+    actions:
+      - "确认没有残留实验开关和被拒绝 kernel。"
+      - "检查最终 diff 只包含授权且已接受改动。"
+      - "运行 baseline 独立测试、current 独立测试和仓库原有测试。"
+      - "按代表 shape 运行最终 benchmark。"
+      - "核对文档、命令、ratio 表头和实际输出一致。"
+    required_outputs:
+      - "最终目录树"
+      - "所有测试与 benchmark 命令"
+      - "正确性结果，包括 xfail/限制"
+      - "修改前后性能表和 baseline/current"
+      - "接受、拒绝实验及原因"
+      - "剩余瓶颈与下一阶段结构性方向"
+
+stop_conditions:
+  continue_when:
+    - "仍有低风险、可测量且尚未验证的 P0/P1 假设。"
+    - "profiling 指向明确热点，并存在不改变语义的实现方案。"
+    - "候选失败是可修复工程问题，而非硬件/API 能力边界。"
+  stop_when:
+    - "所有 P0/P1 假设均已接受或有数据地拒绝。"
+    - "连续三个有依据的候选均未超过噪声或发生回退。"
+    - "剩余方向均需要结构性重写，不能作为安全局部优化。"
+    - "继续需要新的厂商设备编程 API、权限或未提供的语义决策。"
+  never_stop_because:
+    - "首次编译慢"
+    - "实验困难"
+    - "baseline 已经比 current 慢"
+    - "达到一个漂亮但未经稳定验证的倍率"
+
+final_ai_response_contract:
+  lead_with:
+    - "最终保留了什么"
+    - "正确性状态"
+    - "核心性能数字"
+  must_disclose:
+    - "baseline 的真实实现/lowering"
+    - "baseline/current 的定义"
+    - "所有已知限制和 xfail"
+    - "测试脚本位置与完整命令"
+    - "未保留实验及原因"
+  must_not_claim:
+    - "未测试 shape 的普遍加速"
+    - "xfail 已解决"
+    - "TopsAten 封装是自定义设备 kernel"
+    - "不同条件测量形成的虚假倍率"
