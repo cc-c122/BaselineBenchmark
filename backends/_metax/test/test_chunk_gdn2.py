@@ -18,9 +18,9 @@ import math
 import pytest
 import torch
 
-from backends._metax.ops.chunk_gdn2 import chunk_gdn2
 from backends._metax.ops.gdn2_native.chunk_fwd import chunk_gdn2_fwd
 from backends._metax.test._utils import is_metax_available
+from flag_attn.runtime.backend._metax.chunk_gdn2 import chunk_gdn2
 
 ASSERT_RATIO = 0.01
 IS_METAX_GDN2 = True

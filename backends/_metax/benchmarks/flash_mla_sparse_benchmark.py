@@ -29,7 +29,7 @@ import torch
 import triton
 import triton.knobs
 
-from backends._metax.ops.flashmla_sparse import flash_mla_sparse_fwd
+from flag_attn.runtime.backend._metax.flashmla_sparse import flash_mla_sparse_fwd
 
 
 D_QK = 576

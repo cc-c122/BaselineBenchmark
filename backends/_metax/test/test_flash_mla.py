@@ -18,8 +18,8 @@ import pytest
 import torch
 import triton
 
-from backends._metax.ops.flash_mla import flash_mla
 from backends._metax.test._utils import is_metax_available
+from flag_attn.runtime.backend._metax.flash_mla import flash_mla
 
 device = "cuda"
 

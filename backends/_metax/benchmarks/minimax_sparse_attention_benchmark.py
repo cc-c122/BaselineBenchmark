@@ -38,7 +38,7 @@ import triton
 import triton.knobs
 import triton.testing as triton_testing
 
-from backends._metax.ops.minimax_sparse_attention import (
+from flag_attn.runtime.backend._metax.minimax_sparse_attention import (
     SPARSE_BLOCK_SIZE,
     minimax_m3_index_decode,
     minimax_m3_index_score,

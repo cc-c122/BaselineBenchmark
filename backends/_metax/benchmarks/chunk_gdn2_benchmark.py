@@ -31,8 +31,8 @@ import torch
 import triton
 import triton.knobs
 
-from backends._metax.ops.chunk_gdn2 import chunk_gdn2
 from backends._metax.ops.gdn2_native.chunk_fwd import chunk_gdn2_fwd
+from flag_attn.runtime.backend._metax.chunk_gdn2 import chunk_gdn2
 
 
 SHAPES = (
@@ -135,7 +135,7 @@ def main() -> None:
         raise RuntimeError("This benchmark requires a CUDA-compatible device.")
     triton.knobs.autotuning.adjust_block_size = False
     gdn2_module = importlib.import_module(
-        "backends._metax.ops.chunk_gdn2"
+        "flag_attn.runtime.backend._metax.chunk_gdn2"
     )
     if not gdn2_module.HAS_TLE_GDN2:
         raise RuntimeError("This benchmark requires FlagTree 3.6+ with TLE GDN2.")

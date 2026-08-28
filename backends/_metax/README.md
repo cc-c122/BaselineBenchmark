@@ -8,8 +8,9 @@ This backend contains the five C550 operator lines adapted in FlagAttention:
 - `chunk_gdn2`
 - MiniMax M3 sparse attention (MSA)
 
-Operator implementations live under `ops/`; correctness tests live under
-`test/`; executable performance programs live under `benchmarks/`. Generated
+The adapted implementations are imported from `czy1101/FlagAttention:cyc`.
+Performance baselines live under `ops/`; correctness tests live under `test/`;
+executable performance programs live under `benchmarks/`. Generated
 logs and result files must remain
 untracked and should be written under the repository-level `results/`
 directory.

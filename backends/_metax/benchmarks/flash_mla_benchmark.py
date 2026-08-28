@@ -29,7 +29,7 @@ import torch
 import triton
 import triton.knobs
 
-from backends._metax.ops.flash_mla import flash_mla
+from flag_attn.runtime.backend._metax.flash_mla import flash_mla
 
 
 BATCHES = (32, 64, 128, 256, 512)

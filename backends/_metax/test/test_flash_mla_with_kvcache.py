@@ -36,11 +36,11 @@ except ImportError:
     VLLM_AVAILABLE = False
 
 # Triton implementation under test
-from backends._metax.ops.flash_mla_with_kvcache import FlashMLASchedMeta
-from backends._metax.ops.flash_mla_with_kvcache import (
+from flag_attn.runtime.backend._metax.flash_mla_with_kvcache import FlashMLASchedMeta
+from flag_attn.runtime.backend._metax.flash_mla_with_kvcache import (
     flash_mla_with_kvcache as triton_flash_mla,
 )
-from backends._metax.ops.flash_mla_with_kvcache import (
+from flag_attn.runtime.backend._metax.flash_mla_with_kvcache import (
     get_mla_metadata as triton_get_mla_metadata,
 )
 from backends._metax.test._utils import is_metax_available

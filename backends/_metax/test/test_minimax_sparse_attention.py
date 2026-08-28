@@ -18,7 +18,7 @@
 import pytest
 import torch
 
-from backends._metax.ops.minimax_sparse_attention import (
+from flag_attn.runtime.backend._metax.minimax_sparse_attention import (
     SPARSE_BLOCK_SIZE,
     minimax_m3_index_decode,
     minimax_m3_index_score,
@@ -157,10 +157,10 @@ def _make_block_table(batch, max_blocks):
 
 def test_local_exports_use_metax_implementation():
     assert minimax_m3_index_decode.__module__.startswith(
-        "backends._metax.ops.minimax_sparse_attention"
+        "flag_attn.runtime.backend._metax.minimax_sparse_attention"
     )
     assert minimax_m3_sparse_attn.__module__.startswith(
-        "backends._metax.ops.minimax_sparse_attention"
+        "flag_attn.runtime.backend._metax.minimax_sparse_attention"
     )
 
 

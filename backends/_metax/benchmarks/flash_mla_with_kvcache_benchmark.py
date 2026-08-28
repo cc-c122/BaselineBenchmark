@@ -30,7 +30,7 @@ import torch
 import triton
 import triton.knobs
 
-from backends._metax.ops.flash_mla_with_kvcache import (
+from flag_attn.runtime.backend._metax.flash_mla_with_kvcache import (
     flash_mla_with_kvcache,
     get_mla_metadata,
 )

@@ -12,8 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MetaX operator implementations used by the backend benchmarks.
-
-Import operators from their individual modules so one benchmark does not
-eagerly load the dependencies of all five operator lines.
-"""
+"""Performance baselines used by the MetaX backend benchmarks."""

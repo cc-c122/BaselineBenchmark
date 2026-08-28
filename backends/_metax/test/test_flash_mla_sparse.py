@@ -19,8 +19,8 @@ from typing import List, Optional, Tuple
 import pytest
 import torch
 
-from backends._metax.ops.flashmla_sparse import flash_mla_sparse_fwd
 from backends._metax.test._utils import is_metax_available
+from flag_attn.runtime.backend._metax.flashmla_sparse import flash_mla_sparse_fwd
 
 random.seed(42)
 
